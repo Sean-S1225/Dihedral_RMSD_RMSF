@@ -3,17 +3,22 @@ import math
 import pandas as pd
 
 class Algorithm:
-	def __init__(self, files: list[str], references: list[str], names: list[str]) -> None:
+	def __init__(self, files: list[str], references: list[str], names: list[str], header: bool) -> None:
 		"""
 		Args:
 			files (list[str]): Files containing the dihedral angle data, columns are expected to be in Phi:x, Psi:x, Phi:x+1, Psi:x+1, etc. form
 			references (list[str]): Files containing the reference structures to use in calculating RMSD
 			names (list[str]): File names for each RMSD dataset
+			header (bool | list[bool]): Do your files have a header? Either specify all the files at once, or each file individually.
 		"""
 		self.files = files
 		self.references = references
 		self.names = names
 		self.flag = "!#!#"
+		if header == True:
+			self.header = "infer"
+		else:
+			self.header = None
 
 	def angleBetween(self, start: float, end: float) -> float:
 		"""
@@ -46,10 +51,10 @@ class Algorithm:
 
 	def calcDistWraparound(self, fix: list[float], other: list[float]):
 		"""
-		Calculates the smallest distance between two points in a "wraparound space", with x in [-180, 180], y in [-180, 180].
-		Distance is calculated by fixing one point, and then imaging the other point eight times (for a total of nine) by adding
-		either -360, 0, 360 to the x and y positions, then taking the distance to each point and returning the minimum value.
-		The equation is symmetric, so which point is the "fixed point" doesn't matter
+		Calculates the smallest distance between two points in a "wraparound space", with each component in [-180, 180].
+		Distance is calculated by fixing one point, and then imaging the other point 3^N times, where N is the number of dimensions, by adding
+		either -360, 0, 360 to each component, then taking the distance to each point and returning the minimum value.
+		The equation is symmetric, so which point is the "fixed point" doesn't matter.
 
 		Args:
 			fix (list[float]): The components of the fixed point
@@ -75,19 +80,9 @@ class Algorithm:
 
 		#Now that we've found which imaged point is closest to the fixed point, return the standard Euclidean distance to it
 		temp = 0
-		for minComp, fixComp in zip(minComponents, fix):
-			temp += pow(minComp - fixComp, 2)
+		for coord, fixComp in zip(coords, fix):
+			temp += pow(coord - fixComp, 2)
 		return math.sqrt(temp)/360
-	
-	def writeToFile(dataFrame: pd.DataFrame, fileName: str, header: bool = False) -> None:
-		"""Takes a DataFrame and writes it to a csv file
-
-		Args:
-			dataFrame (pd.DataFrame): The DataFrame to write
-			name (str): The name of the file
-			header (bool, optional): Should the header be included? Defaults to False.
-		"""
-		dataFrame.to_csv(fileName, header = header)
 
 class ArcLength(Algorithm):
 	def __init__(self, files: list[str], references: list[str], names: list[str], lengths: list[str]) -> None:
@@ -97,7 +92,6 @@ class ArcLength(Algorithm):
 			references (list[str]): Files containing the reference structures to use in calculating RMSD
 			names (list[str]): File names for each RMSD dataset
 			lengths (list[str]): Files containing the lengths of the dihedrals
-			restrictToDBD (bool, optional): Should the RMSD be of the whole protein, or DBD only? Defaults to False.
 		"""
 		super().__init__(files, references, names)
 		self.lengths = lengths
@@ -107,22 +101,19 @@ class ArcLength(Algorithm):
 		Calculates the Arclength RMSD values of a set of dihedral angles, and writes them to a file
 
 		Args:
-			files (list[str]): Files containing the dihedral angle data, columns are expected to be in Phi:x, Psi:x, Phi:x+1, Psi:x+1, etc. form
-			references (list[str]): Files containing the reference structures to use in calculating RMSD
-			names (list[str]): File names for each RMSD dataset
-			lengths (list[str]): Files containing the lengths of the dihedrals
 			restrictToDBD (bool, optional): Should the RMSD be of the whole protein, or DBD only? Defaults to False.
+			separatePhiPsi (bool, optional): Should there be one calculation for the Phi angles and one for the Psi angles, or should both of them be in one calculation?
 		"""
 		
 		toReturn = []
 		for file, ref, name, length in zip(self.files, self.references, self.names, self.lengths):
-			angles = pd.read_csv(file, delim_whitespace=True)
+			angles = pd.read_csv(file, delim_whitespace=True, header=self.header)
 			angles = angles.drop(angles.columns[[0]], axis = 1)
 
-			ref = pd.read_csv(ref, delim_whitespace=True)
+			ref = pd.read_csv(ref, delim_whitespace=True, header=self.header)
 			ref = ref.drop(ref.columns[[0]], axis=1)[:1]
 
-			length = pd.read_csv(length, delim_whitespace=True)
+			length = pd.read_csv(length, delim_whitespace=True, header=self.header)
 			length = length.drop(length.columns[0], axis=1)
 
 			if restrictToDBD:
@@ -164,29 +155,22 @@ class ArcLength(Algorithm):
 	def RMSF(self):
 		"""
 		Calculates the Arclength RMSF values of a set of dihedral angles, and writes them to a file
-
-		Args:
-			files (list[str]): Files containing the dihedral angle data, columns are expected to be in Phi:x, Psi:x, Phi:x+1, Psi:x+1, etc. form
-			references (list[str]): Files containing the reference structures to use in calculating RMSD
-			names (list[str]): File names for each RMSD dataset
-			lengths (list[str]): Files containing the lengths of the dihedrals
-			restrictToDBD (bool, optional): Should the RMSD be of the whole protein, or DBD only? Defaults to False.
 		"""
 		
 		for file, ref, name, length in zip(self.files, self.references, self.names, self.lengths):
-			angles = pd.read_csv(file, delim_whitespace=True)
+			angles = pd.read_csv(file, delim_whitespace=True, header=self.header)
 			angles = angles.drop(angles.columns[[0]], axis = 1)
 
 			anglesPhi = angles.drop(angles.columns[list(range(len(angles.columns) + 1))[1::2]], axis = 1)[:1000]
 			anglesPsi = angles.drop(angles.columns[list(range(len(angles.columns)))[0::2]], axis = 1)[:1000]
 
-			ref = pd.read_csv(ref, delim_whitespace=True)
+			ref = pd.read_csv(ref, delim_whitespace=True, header=self.header)
 			ref = ref.drop(ref.columns[[0]], axis=1)
 
 			refPhi = ref.drop(ref.columns[list(range(len(ref.columns) + 1))[1::2]], axis = 1)
 			refPsi = ref.drop(ref.columns[list(range(len(ref.columns)))[0::2]], axis = 1)
 
-			length = pd.read_csv(length, delim_whitespace=True)
+			length = pd.read_csv(length, delim_whitespace=True, header=self.header)
 			length = length.drop(length.columns[0], axis=1)
 
 			refPhi = pd.concat([refPhi] * anglesPhi.shape[0])
@@ -203,8 +187,6 @@ class AngleDifference(Algorithm):
 			files (list[str] | list[list[str]]): Files containing the dihedral angle data, columns are expected to be in Phi:x, Psi:x, Phi:x+1, Psi:x+1, etc. form
 			references (list[str] | list[list[str]]): Files containing the reference structures to use in calculating RMSD
 			names (list[str]): File names for each RMSD dataset
-			lengths (list[str]): Files containing the lengths of the dihedrals
-			restrictToDBD (bool, optional): Should the RMSD be of the whole protein, or DBD only? Defaults to False.
 		"""
 		super().__init__(files, references, names)
 
@@ -217,10 +199,10 @@ class AngleDifference(Algorithm):
 			separatePhiPsi (bool, optional): Should there be one calculation for the Phi angles and one for the Psi angles, or should both of them be in one calculation?
 		"""
 		for file, ref, name in zip(self.files, self.references, self.names):
-			angles = pd.read_csv(file, delim_whitespace=True)
+			angles = pd.read_csv(file, delim_whitespace=True, header=self.header)
 			angles = angles.drop(angles.columns[[0]], axis = 1)[:1000]
 
-			ref = pd.read_csv(ref, delim_whitespace=True)
+			ref = pd.read_csv(ref, delim_whitespace=True, header=self.header)
 			ref = ref.drop(ref.columns[[0]], axis=1)[:1]
 
 			if restrictToDBD:
@@ -261,7 +243,7 @@ class AngleDifference(Algorithm):
 
 			if type(file) == list:
 				for temp in self.files:
-					temp = pd.read_csv(temp, delim_whitespace=True)
+					temp = pd.read_csv(temp, delim_whitespace=True, header=self.header)
 					temp = file.drop(temp.columns[[0]], axis=1)
 					fileList.append(temp)
 			else:
@@ -269,7 +251,7 @@ class AngleDifference(Algorithm):
 
 			if type(self.references[0]) == list:
 				for ref in self.references:
-					ref = pd.read_csv(ref, delim_whitespace=True)
+					ref = pd.read_csv(ref, delim_whitespace=True, header=self.header)
 					ref = ref.drop(ref.columns[[0]], axis=1)
 					referenceList.append(ref)
 			else:
@@ -318,13 +300,13 @@ class AngleDifference(Algorithm):
 		"""
 
 		for file, ref, name in zip(self.files, self.references, self.names):
-			angles = pd.read_csv(file, delim_whitespace=True)
+			angles = pd.read_csv(file, delim_whitespace=True, header=self.header)
 			angles = angles.drop(angles.columns[[0]], axis = 1)
 
 			anglesPhi = angles.drop(angles.columns[list(range(len(angles.columns) + 1))[1::2]], axis = 1)[:1000]
 			anglesPsi = angles.drop(angles.columns[list(range(len(angles.columns)))[0::2]], axis = 1)[:1000]
 
-			ref = pd.read_csv(ref, delim_whitespace=True)
+			ref = pd.read_csv(ref, delim_whitespace=True, header=self.header)
 			ref = ref.drop(ref.columns[[0]], axis=1)
 
 			refPhi = ref.drop(ref.columns[list(range(len(ref.columns) + 1))[1::2]], axis = 1)
@@ -354,10 +336,10 @@ class Wraparound(Algorithm):
 			restrictToDBD (bool, optional): Should the RMSD be of the whole protein, or DBD only? Defaults to False.
 		"""
 		for file, ref, name in zip(self.files, self.references, self.names):
-			angles = pd.read_csv(file, delim_whitespace=True)
+			angles = pd.read_csv(file, delim_whitespace=True, header=self.header)
 			angles = angles.drop(angles.columns[[0]], axis = 1)[:1000]
 
-			ref = pd.read_csv(ref, delim_whitespace=True)
+			ref = pd.read_csv(ref, delim_whitespace=True, header=self.header)
 			ref = ref.drop(ref.columns[[0]], axis=1)[:1]
 
 			if restrictToDBD:
@@ -383,10 +365,10 @@ class Wraparound(Algorithm):
 		"""
 
 		for file, ref, name in zip(self.files, self.references, self.names):
-			angles = pd.read_csv(file, delim_whitespace=True)
+			angles = pd.read_csv(file, delim_whitespace=True, header=self.header)
 			angles = angles.drop(angles.columns[[0]], axis = 1)[:1000]
 
-			ref = pd.read_csv(ref, delim_whitespace=True)
+			ref = pd.read_csv(ref, delim_whitespace=True, header=self.header)
 			ref = ref.drop(ref.columns[[0]], axis=1)[:1]
 
 			temp = len(angles.columns)
@@ -398,15 +380,3 @@ class Wraparound(Algorithm):
 			ref = pd.concat([ref] * angles.shape[0])
 
 			pd.DataFrame(np.vectorize(self.calcDistWraparound)(ref, angles)).apply(np.square).mean(axis=0).apply(np.sqrt).to_csv(name, header=False)
-
-
-alg = Algorithm([], [], [])
-print(alg.calcDistWraparound([-135, 135], [135, -135]))
-print(alg.calcDistWraparound([0, 135], [0, -135]))
-print(alg.calcDistWraparound([135, 135], [-135, -135]))
-print(alg.calcDistWraparound([-135, 0], [135, 0]))
-print(alg.calcDistWraparound([-45, 0], [45, 0]))
-print(alg.calcDistWraparound([135, 0], [0, -135]))
-print(alg.calcDistWraparound([-135, -135], [135, 135]))
-print(alg.calcDistWraparound([0, -135], [0, 135]))
-print(alg.calcDistWraparound([135, -135], [-135, 135]))
