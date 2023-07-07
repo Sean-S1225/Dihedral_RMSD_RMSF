@@ -1,6 +1,7 @@
 import numpy as np
 import math
 import pandas as pd
+import csv
 
 class Algorithm:
 	def __init__(self, files: list[str], references: list[str], names: list[str], header: bool) -> None:
@@ -9,7 +10,7 @@ class Algorithm:
 			files (list[str]): Files containing the dihedral angle data, columns are expected to be in Phi:x, Psi:x, Phi:x+1, Psi:x+1, etc. form
 			references (list[str]): Files containing the reference structures to use in calculating RMSD
 			names (list[str]): File names for each RMSD dataset
-			header (bool | list[bool]): Do your files have a header? Either specify all the files at once, or each file individually.
+			header (bool): Do your files have a header?
 		"""
 		self.files = files
 		self.references = references
@@ -85,15 +86,16 @@ class Algorithm:
 		return math.sqrt(temp)/360
 
 class ArcLength(Algorithm):
-	def __init__(self, files: list[str], references: list[str], names: list[str], lengths: list[str]) -> None:
+	def __init__(self, files: list[str], references: list[str], names: list[str], lengths: list[str], header: bool) -> None:
 		"""
 		Args:
 			files (list[str]): Files containing the dihedral angle data, columns are expected to be in Phi:x, Psi:x, Phi:x+1, Psi:x+1, etc. form
 			references (list[str]): Files containing the reference structures to use in calculating RMSD
 			names (list[str]): File names for each RMSD dataset
 			lengths (list[str]): Files containing the lengths of the dihedrals
+			header (bool): Do your files have a header?
 		"""
-		super().__init__(files, references, names)
+		super().__init__(files, references, names, header)
 		self.lengths = lengths
 
 	def RMSD(self, restrictToDBD = False, separatePhiPsi = True):
@@ -128,8 +130,8 @@ class ArcLength(Algorithm):
 				length = length.drop(length.columns[:132], axis = 1)
 
 			#Drop every other column to isolate the DataFrame to be only phi or psi angles
-			anglesPhi = angles.drop(angles.columns[list(range(len(angles.columns) + 1))[1::2]], axis = 1)[:1000]
-			anglesPsi = angles.drop(angles.columns[list(range(len(angles.columns)))[0::2]], axis = 1)[:1000]
+			anglesPhi = angles.drop(angles.columns[list(range(len(angles.columns) + 1))[1::2]], axis = 1)
+			anglesPsi = angles.drop(angles.columns[list(range(len(angles.columns)))[0::2]], axis = 1)
 
 			refPhi = ref.drop(ref.columns[list(range(len(ref.columns) + 1))[1::2]], axis = 1)
 			refPsi = ref.drop(ref.columns[list(range(len(ref.columns)))[0::2]], axis = 1)
@@ -161,8 +163,8 @@ class ArcLength(Algorithm):
 			angles = pd.read_csv(file, delim_whitespace=True, header=self.header)
 			angles = angles.drop(angles.columns[[0]], axis = 1)
 
-			anglesPhi = angles.drop(angles.columns[list(range(len(angles.columns) + 1))[1::2]], axis = 1)[:1000]
-			anglesPsi = angles.drop(angles.columns[list(range(len(angles.columns)))[0::2]], axis = 1)[:1000]
+			anglesPhi = angles.drop(angles.columns[list(range(len(angles.columns) + 1))[1::2]], axis = 1)
+			anglesPsi = angles.drop(angles.columns[list(range(len(angles.columns)))[0::2]], axis = 1)
 
 			ref = pd.read_csv(ref, delim_whitespace=True, header=self.header)
 			ref = ref.drop(ref.columns[[0]], axis=1)
@@ -181,14 +183,15 @@ class ArcLength(Algorithm):
 
 
 class AngleDifference(Algorithm):
-	def __init__(self, files: list[str] | list[list[str]], references: list[str] | list[list[str]], names: list[str]) -> None:
+	def __init__(self, files: list[str] | list[list[str]], references: list[str] | list[list[str]], names: list[str], header: bool) -> None:
 		"""
 		Args:
 			files (list[str] | list[list[str]]): Files containing the dihedral angle data, columns are expected to be in Phi:x, Psi:x, Phi:x+1, Psi:x+1, etc. form
 			references (list[str] | list[list[str]]): Files containing the reference structures to use in calculating RMSD
 			names (list[str]): File names for each RMSD dataset
+			header (bool): Do your files have a header?
 		"""
-		super().__init__(files, references, names)
+		super().__init__(files, references, names, header)
 
 	def RMSD(self, restrictToDBD = False, separatePhiPsi = True):
 		"""
@@ -200,7 +203,7 @@ class AngleDifference(Algorithm):
 		"""
 		for file, ref, name in zip(self.files, self.references, self.names):
 			angles = pd.read_csv(file, delim_whitespace=True, header=self.header)
-			angles = angles.drop(angles.columns[[0]], axis = 1)[:1000]
+			angles = angles.drop(angles.columns[[0]], axis = 1)
 
 			ref = pd.read_csv(ref, delim_whitespace=True, header=self.header)
 			ref = ref.drop(ref.columns[[0]], axis=1)[:1]
@@ -214,8 +217,8 @@ class AngleDifference(Algorithm):
 				ref = ref.drop(ref.columns[:132*2], axis = 1)
 
 			#Drop every other column to isolate the DataFrame to be only phi or psi angles
-			anglesPhi = angles.drop(angles.columns[list(range(len(angles.columns) + 1))[1::2]], axis = 1)[:1000]
-			anglesPsi = angles.drop(angles.columns[list(range(len(angles.columns)))[0::2]], axis = 1)[:1000]
+			anglesPhi = angles.drop(angles.columns[list(range(len(angles.columns) + 1))[1::2]], axis = 1)
+			anglesPsi = angles.drop(angles.columns[list(range(len(angles.columns)))[0::2]], axis = 1)
 
 			#Drop every other column to isolate the DataFrame to be only phi or psi angles
 			refPhi = ref.drop(ref.columns[list(range(len(ref.columns) + 1))[1::2]], axis = 1)
@@ -292,7 +295,15 @@ class AngleDifference(Algorithm):
 
 			matrix = pd.concat(matrix, axis=1)
 
-			matrix.to_csv(name, header = False, index = False)
+			# matrix.to_csv(name, header = False, index = False)
+			with open(name, "w") as csvfile:
+				csvwriter = csv.writer(csvfile, delimiter="\t")
+				csvwriter.writerow(["#F1", "F2", "RMSD"])
+				for col in range(matrix.shape[0]):
+					for row, val in enumerate(matrix[col]):
+						if row < col + 1:
+							continue
+						csvwriter.writerow([col+1, row+1, val])
 
 	def RMSF(self):
 		"""
@@ -303,8 +314,8 @@ class AngleDifference(Algorithm):
 			angles = pd.read_csv(file, delim_whitespace=True, header=self.header)
 			angles = angles.drop(angles.columns[[0]], axis = 1)
 
-			anglesPhi = angles.drop(angles.columns[list(range(len(angles.columns) + 1))[1::2]], axis = 1)[:1000]
-			anglesPsi = angles.drop(angles.columns[list(range(len(angles.columns)))[0::2]], axis = 1)[:1000]
+			anglesPhi = angles.drop(angles.columns[list(range(len(angles.columns) + 1))[1::2]], axis = 1)
+			anglesPsi = angles.drop(angles.columns[list(range(len(angles.columns)))[0::2]], axis = 1)
 
 			ref = pd.read_csv(ref, delim_whitespace=True, header=self.header)
 			ref = ref.drop(ref.columns[[0]], axis=1)
@@ -319,14 +330,15 @@ class AngleDifference(Algorithm):
 			pd.DataFrame(np.vectorize(self.angleBetween)(anglesPsi, refPsi)).apply(lambda x: x/360).apply(np.square).mean(axis=0).apply(np.sqrt).to_csv(name.replace(self.flag, "Psi"), header=False)
 
 class Wraparound(Algorithm):
-	def __init__(self, files: list[str], references: list[str], names: list[str]) -> None:
+	def __init__(self, files: list[str], references: list[str], names: list[str], header: bool) -> None:
 		"""
 		Args:
 			files (list[str]): Files containing the dihedral angle data, columns are expected to be in Phi:x, Psi:x, Phi:x+1, Psi:x+1, etc. form
 			references (list[str]): Files containing the reference structures to use in calculating RMSD
 			names (list[str]): File names for each RMSD dataset
+			header (bool): Do your files have a header?
 		"""
-		super().__init__(files, references, names)
+		super().__init__(files, references, names, header)
 
 	def RMSD(self, restrictToDBD = False):
 		"""
@@ -337,7 +349,7 @@ class Wraparound(Algorithm):
 		"""
 		for file, ref, name in zip(self.files, self.references, self.names):
 			angles = pd.read_csv(file, delim_whitespace=True, header=self.header)
-			angles = angles.drop(angles.columns[[0]], axis = 1)[:1000]
+			angles = angles.drop(angles.columns[[0]], axis = 1)
 
 			ref = pd.read_csv(ref, delim_whitespace=True, header=self.header)
 			ref = ref.drop(ref.columns[[0]], axis=1)[:1]
@@ -366,7 +378,7 @@ class Wraparound(Algorithm):
 
 		for file, ref, name in zip(self.files, self.references, self.names):
 			angles = pd.read_csv(file, delim_whitespace=True, header=self.header)
-			angles = angles.drop(angles.columns[[0]], axis = 1)[:1000]
+			angles = angles.drop(angles.columns[[0]], axis = 1)
 
 			ref = pd.read_csv(ref, delim_whitespace=True, header=self.header)
 			ref = ref.drop(ref.columns[[0]], axis=1)[:1]
