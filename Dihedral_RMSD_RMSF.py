@@ -8,6 +8,7 @@ import csv
 #TODO: Test implementation of Wraparound pairwise matrix
 #TODO: Allow user to specify custom subsections of the protein to calculate on (i.e. don't hard-code DBD domain)
 #TODO: Seperate Phi/Psi pairwise matrices
+#TODO: Create more functions to reduce identical code in RMSD/RMSF/PairwiseRMSD functions
 
 class Algorithm:
 	def __init__(self, files: list[str], references: list[str], names: list[str], header: bool = False) -> None:
@@ -326,7 +327,7 @@ class AngleDifference(Algorithm):
 			refPsi = ref.drop(ref.columns[list(range(len(ref.columns)))[0::2]], axis = 1)
 
 			refPhi = pd.concat([refPhi] * anglesPhi.shape[0])
-			refPsi = pd.concat([refPsi] * anglesPi.shape[0])
+			refPsi = pd.concat([refPsi] * anglesPsi.shape[0])
 			
 			#Calculate RMSD values all at once
 			if separatePhiPsi:
