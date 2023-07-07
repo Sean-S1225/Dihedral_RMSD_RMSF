@@ -6,6 +6,8 @@ import csv
 #TODO: Test implementation of Angle Diff pairwise matrix
 #TODO: Test implementation of Arc Length pairwise matrix
 #TODO: Test implementation of Wraparound pairwise matrix
+#TODO: Allow user to specify custom subsections of the protein to calculate on (i.e. don't hard-code DBD domain)
+#TODO: Seperate Phi/Psi pairwise matrices
 
 class Algorithm:
 	def __init__(self, files: list[str], references: list[str], names: list[str], header: bool = False) -> None:
