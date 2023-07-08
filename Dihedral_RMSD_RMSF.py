@@ -3,15 +3,12 @@ import math
 import pandas as pd
 import csv
 
-#TODO: Test implementation of Angle Diff pairwise matrix
-#TODO: Test implementation of Arc Length pairwise matrix
-#TODO: Test implementation of Wraparound pairwise matrix
 #TODO: Allow user to specify custom subsections of the protein to calculate on (i.e. don't hard-code DBD domain)
 #TODO: Seperate Phi/Psi pairwise matrices
 #TODO: Create more functions to reduce identical code in RMSD/RMSF/PairwiseRMSD functions
 
 class Algorithm:
-	def __init__(self, files: list[str], references: list[str], names: list[str], header: bool = False) -> None:
+	def __init__(self, files: list[str], references: list[str], names: list[str], header: bool) -> None:
 		"""
 		Args:
 			files (list[str]): Files containing the dihedral angle data, columns are expected to be in Phi:x, Psi:x, Phi:x+1, Psi:x+1, etc. form
@@ -93,7 +90,7 @@ class Algorithm:
 		return math.sqrt(temp)/360
 
 class ArcLength(Algorithm):
-	def __init__(self, files: list[str], references: list[str], names: list[str], lengths: list[str], header: bool) -> None:
+	def __init__(self, files: list[str], references: list[str], names: list[str], lengths: list[str], header: bool = True) -> None:
 		"""
 		Args:
 			files (list[str]): Files containing the dihedral angle data, columns are expected to be in Phi:x, Psi:x, Phi:x+1, Psi:x+1, etc. form
@@ -175,7 +172,7 @@ class ArcLength(Algorithm):
 					fileList.append(temp)
 			else:
 				temp = pd.read_csv(file, delim_whitespace=True, header=self.header)
-				temp = file.drop(temp.columns[[0]], axis=1)
+				temp = temp.drop(temp.columns[[0]], axis=1)
 				fileList.append(temp)
 
 			if type(self.references[0]) == list:
@@ -196,7 +193,7 @@ class ArcLength(Algorithm):
 			else:
 				temp = pd.read_csv(length, delim_whitespace=True, header=self.header)
 				temp = temp.drop(temp.columns[[0]], axis=1)
-				referenceList.append(temp)
+				lengthList.append(temp)
 
 			#Since we know that fileList and referenceList are lists (possibly of length one), we can safely do this
 			angles = pd.concat(fileList)
@@ -207,6 +204,10 @@ class ArcLength(Algorithm):
 			angles = angles.reset_index()
 			ref = ref.reset_index()
 			lens = lens.reset_index()
+
+			angles = angles.drop(angles.columns[[0]], axis = 1)
+			ref = ref.drop(ref.columns[[0]], axis = 1)
+			lens = lens.drop(lens.columns[[0]], axis = 1)
 
 			if restrictToDBD:
 				#Restricts the range to only the DBD (134-312)
@@ -284,7 +285,7 @@ class ArcLength(Algorithm):
 
 
 class AngleDifference(Algorithm):
-	def __init__(self, files: list[str] | list[list[str]], references: list[str] | list[list[str]], names: list[str], header: bool) -> None:
+	def __init__(self, files: list[str] | list[list[str]], references: list[str] | list[list[str]], names: list[str], header: bool = True) -> None:
 		"""
 		Args:
 			files (list[str] | list[list[str]]): Files containing the dihedral angle data, columns are expected to be in Phi:x, Psi:x, Phi:x+1, Psi:x+1, etc. form
@@ -356,7 +357,7 @@ class AngleDifference(Algorithm):
 					fileList.append(temp)
 			else:
 				temp = pd.read_csv(file, delim_whitespace=True, header=self.header)
-				temp = file.drop(temp.columns[[0]], axis=1)
+				temp = temp.drop(temp.columns[[0]], axis=1)
 				fileList.append(temp)
 
 			#If file is a list of file names, then read them all in.
@@ -378,6 +379,9 @@ class AngleDifference(Algorithm):
 			#Reset the index because when concatenated, each DataFrame brings it's own indexing
 			angles = angles.reset_index()
 			ref = ref.reset_index()
+
+			angles = angles.drop(angles.columns[[0]], axis = 1)
+			ref = ref.drop(ref.columns[[0]], axis = 1)
 
 			if restrictToDBD:
 				#Restricts the range to only the DBD (134-312)
@@ -446,7 +450,7 @@ class AngleDifference(Algorithm):
 			pd.DataFrame(np.vectorize(self.angleBetween)(anglesPsi, refPsi)).apply(lambda x: x/360).apply(np.square).mean(axis=0).apply(np.sqrt).to_csv(name.replace(self.flag, "Psi"), header=False)
 
 class Wraparound(Algorithm):
-	def __init__(self, files: list[str], references: list[str], names: list[str], header: bool) -> None:
+	def __init__(self, files: list[str], references: list[str], names: list[str], header: bool = True) -> None:
 		"""
 		Args:
 			files (list[str]): Files containing the dihedral angle data, columns are expected to be in Phi:x, Psi:x, Phi:x+1, Psi:x+1, etc. form
@@ -488,7 +492,8 @@ class Wraparound(Algorithm):
 			angles = angles.drop(angles.columns[:temp], axis=1)
 			ref = pd.concat([ref] * angles.shape[0])
 
-			pd.DataFrame(np.vectorize(self.calcDistWraparound)(ref, angles)).apply(np.square).mean(axis=1).apply(np.sqrt).to_csv(name, header=False)
+			# pd.DataFrame(np.vectorize(self.calcDistWraparound)(ref, angles)).apply(np.square).mean(axis=1).apply(np.sqrt).to_csv(name, header=False)
+			print(pd.DataFrame(np.vectorize(self.calcDistWraparound)(ref, angles)).apply(np.square).mean(axis=1).apply(np.sqrt))
 
 	def PairwiseRMSD(self, restrictToDBD: bool = False):
 		"""Uses the dihedral angles provided to generate a pairwise matrix of RMSD values, used for K-Means clustering
@@ -510,7 +515,7 @@ class Wraparound(Algorithm):
 					fileList.append(temp)
 			else:
 				temp = pd.read_csv(file, delim_whitespace=True, header=self.header)
-				temp = file.drop(temp.columns[[0]], axis=1)
+				temp = temp.drop(temp.columns[[0]], axis=1)
 				fileList.append(temp)
 
 			#If file is a list of file names, then read them all in.
@@ -533,6 +538,9 @@ class Wraparound(Algorithm):
 			angles = angles.reset_index()
 			ref = ref.reset_index()
 
+			angles = angles.drop(angles.columns[[0]], axis = 1)
+			ref = ref.drop(ref.columns[[0]], axis = 1)
+
 			if restrictToDBD:
 				#Restricts the range to only the DBD (134-312)
 				angles = angles.drop(angles.columns[2*311:], axis = 1)
@@ -545,23 +553,24 @@ class Wraparound(Algorithm):
 
 			num = angles.shape[0]
 			for x in range(num):
-				currRef = pd.concat([ref.loc[[x]]] * angles.shape[0])
+				# currRef = pd.concat([ref.loc[[x]]] * angles.shape[0])
+				currRef = ref.loc[[x]]
 				
 				#Calculates the RMSD given the current reference Phi, Psi row
-
-				temp = len(angles.columns)
-				for x in range(len(angles.columns)//2):
-					currRef[str(x)] = currRef.iloc[:, [2*x, 2*x+1]].apply(lambda x: [x[0], x[1]], axis=1)
-					angles[str(x)] = angles.iloc[:, [2*x, 2*x+1]].apply(lambda x: [x[0], x[1]], axis=1)
+				tempAngles = angles.copy()
+				temp = len(tempAngles.columns)
+				for y in range(len(angles.columns)//2):
+					currRef[str(y)] = currRef.iloc[:, [2*y, 2*y+1]].apply(lambda z: [z[0], z[1]], axis=1)
+					tempAngles[str(y)] = tempAngles.iloc[:, [2*y, 2*y+1]].apply(lambda z: [z[0], z[1]], axis=1)
 				currRef = currRef.drop(currRef.columns[:temp], axis=1)
-				angles = angles.drop(angles.columns[:temp], axis=1)
+				tempAngles = tempAngles.drop(tempAngles.columns[:temp], axis=1)
 				currRef = pd.concat([currRef] * angles.shape[0])
 
-				matrix.append(pd.DataFrame(np.vectorize(self.calcDistWraparound)(currRef, angles)).apply(np.square).mean(axis=1).apply(np.sqrt).to_csv(name, header=False))
+				matrix.append(pd.DataFrame(np.vectorize(self.calcDistWraparound)(currRef, tempAngles)).apply(np.square).mean(axis=1).apply(np.sqrt))
 
 				# matrix.append(pd.concat([pd.DataFrame(np.vectorize(self.angleBetween)(currPhi, anglesPhi)), pd.DataFrame(np.vectorize(self.angleBetween)(currPsi, anglesPsi))], axis=1).apply(lambda x: x/360).apply(np.square).mean(axis=1).apply(np.sqrt))
 
-				if x % 100 == 0:
+				if x % 10 == 0:
 					print(f"{x}/{num} Completed")
 
 			matrix = pd.concat(matrix, axis=1)
@@ -599,3 +608,7 @@ class Wraparound(Algorithm):
 			ref = pd.concat([ref] * angles.shape[0])
 
 			pd.DataFrame(np.vectorize(self.calcDistWraparound)(ref, angles)).apply(np.square).mean(axis=0).apply(np.sqrt).to_csv(name, header=False)
+
+wraparound = Wraparound(["../Data/Dihedral Angles/12A_dt001_v1_WT_PhiPsi_2-392_1in1000f.dat"], ["../Data/Dihedral Angles/12A_dt001_v1_WT_PhiPsi_2-392_1in1000f.dat"], ["test.csv"])
+# wraparound.PairwiseRMSD()
+wraparound.RMSD(False)
